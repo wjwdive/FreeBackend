@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # 开发环境应用服务
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: freebackend-app-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=freebackend_dev
+      - DB_USER=freebackend_user
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - mysql
+    restart: unless-stopped
+    command: npm run dev
+
+  # 开发环境数据库
+  mysql:
+    image: mysql:8.0
+    container_name: freebackend-mysql-dev
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=freebackend_dev
+      - MYSQL_USER=freebackend_user
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+
+  # 开发环境Redis（可选）
+  redis:
+    image: redis:alpine
+    container_name: freebackend-redis-dev
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # 开发环境监控（可选）
+  adminer:
+    image: adminer
+    container_name: freebackend-adminer-dev
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  mysql_dev_data:
+
+networks:
+  default:
+    name: freebackend-dev-network
