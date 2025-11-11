@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { createError } = require('../middleware/errorHandler');
+const sequelize = require('sequelize');
 
 /**
  * 用户服务类
@@ -159,7 +160,7 @@ class UserService {
         { status },
         { 
           where: { 
-            id: { [require('sequelize').Op.in]: userIds } 
+            userId: { [require('sequelize').Op.in]: userIds } 
           } 
         }
       );
@@ -215,29 +216,147 @@ class UserService {
   }
 
   /**
-   * 搜索用户
+   * 模糊搜索用户
    * @param {string} keyword - 搜索关键词
    * @param {number} limit - 返回结果数量限制
+   * @param {string} searchType - 搜索类型：all（全部字段）、username（仅用户名）、email（仅邮箱）
+   * @returns {Promise<Array>} 用户列表（按匹配度排序）
+   */
+  async searchUsers(keyword, limit = 20, searchType = 'all') {
+    try {
+      if (!keyword || keyword.trim().length === 0) {
+        throw createError('搜索关键词不能为空', 400, 'ValidationError');
+      }
+
+      const trimmedKeyword = keyword.trim();
+      
+      // 根据搜索词长度提供不同的搜索策略
+      if (trimmedKeyword.length < 1) {
+        throw createError('搜索关键词至少需要1个字符', 400, 'ValidationError');
+      }
+
+      const { Op } = require('sequelize');
+      const whereClause = {};
+
+      // 根据搜索类型构建查询条件
+      switch (searchType) {
+        case 'username':
+          whereClause.username = { [Op.like]: `%${trimmedKeyword}%` };
+          break;
+        case 'email':
+          whereClause.email = { [Op.like]: `%${trimmedKeyword}%` };
+          break;
+        case 'all':
+        default:
+          whereClause[Op.or] = [
+            { username: { [Op.like]: `%${trimmedKeyword}%` } },
+            { email: { [Op.like]: `%${trimmedKeyword}%` } },
+            { role: { [Op.like]: `%${trimmedKeyword}%` } }
+          ];
+          break;
+      }
+
+      // 添加状态过滤，只搜索活跃用户
+      whereClause.status = 'active';
+
+      const users = await User.findAll({
+        where: whereClause,
+        attributes: { exclude: ['password'] },
+        limit: parseInt(limit),
+        // 按匹配度排序：完全匹配 > 前缀匹配 > 其他匹配
+        order: [
+          // 完全匹配优先
+          [sequelize.literal(`CASE WHEN username = '${trimmedKeyword.replace(/'/g, "''")}' THEN 1 WHEN email = '${trimmedKeyword.replace(/'/g, "''")}' THEN 2 ELSE 3 END`), 'ASC'],
+          // 前缀匹配其次
+          [sequelize.literal(`CASE WHEN username LIKE '${trimmedKeyword.replace(/'/g, "''")}%' THEN 1 WHEN email LIKE '${trimmedKeyword.replace(/'/g, "''")}%' THEN 2 ELSE 3 END`), 'ASC'],
+          // 最后按创建时间排序
+          ['createdAt', 'DESC']
+        ]
+      });
+      console.log('🔍 搜索用户结果:', users);
+      return users;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * 高级模糊搜索用户（支持多条件组合）
+   * @param {Object} searchParams - 搜索参数
+   * @param {string} searchParams.keyword - 搜索关键词
+   * @param {string} searchParams.role - 角色过滤
+   * @param {string} searchParams.status - 状态过滤
+   * @param {number} searchParams.limit - 返回结果数量限制
    * @returns {Promise<Array>} 用户列表
    */
-  async searchUsers(keyword, limit = 20) {
+  async advancedSearchUsers(searchParams = {}) {
     try {
-      if (!keyword || keyword.trim().length < 2) {
-        throw createError('搜索关键词至少需要2个字符', 400, 'ValidationError');
+      const { keyword, role, status, limit = 20 } = searchParams;
+      
+      const { Op } = require('sequelize');
+      const whereClause = {};
+
+      // 关键词搜索条件
+      if (keyword && keyword.trim().length >= 1) {
+        const trimmedKeyword = keyword.trim();
+        whereClause[Op.or] = [
+          { username: { [Op.like]: `%${trimmedKeyword}%` } },
+          { email: { [Op.like]: `%${trimmedKeyword}%` } }
+        ];
+      }
+
+      // 角色过滤条件
+      if (role) {
+        whereClause.role = role;
+      }
+
+      // 状态过滤条件
+      if (status) {
+        whereClause.status = status;
       }
 
       const users = await User.findAll({
-        where: {
-          [require('sequelize').Op.or]: [
-            { username: { [require('sequelize').Op.like]: `%${keyword}%` } },
-            { email: { [require('sequelize').Op.like]: `%${keyword}%` } }
-          ]
-        },
+        where: whereClause,
         attributes: { exclude: ['password'] },
-        limit: parseInt(limit)
+        limit: parseInt(limit),
+        order: [['createdAt', 'DESC']]
       });
 
       return users;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * 获取搜索建议（用于前端自动补全）
+   * @param {string} keyword - 搜索关键词
+   * @param {number} limit - 返回结果数量限制
+   * @returns {Promise<Array>} 搜索建议列表
+   */
+  async getSearchSuggestions(keyword, limit = 10) {
+    try {
+      if (!keyword || keyword.trim().length < 1) {
+        return [];
+      }
+
+      const trimmedKeyword = keyword.trim();
+      const { Op } = require('sequelize');
+
+      const suggestions = await User.findAll({
+        where: {
+          [Op.or]: [
+            { username: { [Op.like]: `${trimmedKeyword}%` } },
+            { email: { [Op.like]: `${trimmedKeyword}%` } }
+          ],
+          status: 'active'
+        },
+        attributes: ['userId', 'username', 'email'],
+        limit: parseInt(limit),
+        order: [['username', 'ASC']]
+      });
+
+      return suggestions;
     } catch (error) {
       throw error;
     }

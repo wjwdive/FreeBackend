@@ -1,7 +1,13 @@
 const express = require('express');
 const multer = require('multer');
 const {
-  toolsController,
+  convertFileFormat,
+  encryptData,
+  decryptData,
+  generateCaptcha,
+  convertDataFormat,
+  healthCheck,
+  getSupportedFormats,
   validateFileUpload,
   validateEncryption,
   validateDataConvert
@@ -46,7 +52,7 @@ router.post('/file-convert',
   optionalAuth,
   upload.single('file'),
   validateFileUpload,
-  toolsController.convertFileFormat
+  convertFileFormat
 );
 
 /**
@@ -57,7 +63,7 @@ router.post('/file-convert',
 router.post('/encrypt', 
   optionalAuth,
   validateEncryption,
-  toolsController.encryptData
+  encryptData
 );
 
 /**
@@ -68,7 +74,7 @@ router.post('/encrypt',
 router.post('/decrypt', 
   optionalAuth,
   validateEncryption,
-  toolsController.decryptData
+  decryptData
 );
 
 /**
@@ -76,7 +82,7 @@ router.post('/decrypt',
  * @description 生成验证码
  * @access Public
  */
-router.get('/captcha', toolsController.generateCaptcha);
+router.get('/captcha', generateCaptcha);
 
 /**
  * @route POST /api/tools/data-convert
@@ -86,7 +92,7 @@ router.get('/captcha', toolsController.generateCaptcha);
 router.post('/data-convert', 
   optionalAuth,
   validateDataConvert,
-  toolsController.convertDataFormat
+  convertDataFormat
 );
 
 /**
@@ -94,13 +100,13 @@ router.post('/data-convert',
  * @description 服务健康检查
  * @access Public
  */
-router.get('/health', toolsController.healthCheck);
+router.get('/health', healthCheck);
 
 /**
  * @route GET /api/tools/supported-formats
  * @description 获取支持的格式列表
  * @access Public
  */
-router.get('/supported-formats', toolsController.getSupportedFormats);
+router.get('/supported-formats', getSupportedFormats);
 
 module.exports = router;

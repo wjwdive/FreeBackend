@@ -7,10 +7,11 @@ const bcrypt = require('bcryptjs');
  * 定义用户数据表结构和相关方法
  */
 const User = sequelize.define('User', {
-  id: {
+  userId: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true,
+    field: 'id', // 映射到数据库中的id字段
     comment: '用户ID'
   },
   username: {
@@ -110,7 +111,7 @@ User.prototype.updateLoginInfo = async function() {
  */
 User.prototype.getPublicInfo = function() {
   return {
-    id: this.id,
+    userId: this.userId,
     username: this.username,
     email: this.email,
     role: this.role,

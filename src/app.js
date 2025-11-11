@@ -2,30 +2,37 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
 
+const config = require('./config');
 const logger = require('./middleware/logger');
+const { responseLogger, apiStatistics } = require('./middleware/responseLogger');
 const errorHandler = require('./middleware/errorHandler');
 const routes = require('./routes');
 const { specs, swaggerUi } = require('./config/swagger');
+const socketHandler = require('./socket');
 
 const app = express();
+const server = createServer(app);
+
+// Socket.IO配置
+const io = new Server(server, config.socket);
+
+// Socket.IO处理器
+socketHandler(io);
 
 // 安全中间件
 app.use(helmet());
 
 // CORS配置
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://yourdomain.com'] 
-    : ['http://localhost:3000', 'http://localhost:8080'],
-  credentials: true
-}));
+app.use(cors(config.cors));
 
 // 速率限制
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15分钟
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // 限制每个IP每15分钟最多100个请求
+  windowMs: config.rateLimit.windowMs,
+  max: config.rateLimit.max,
   message: {
     statusCode: 429,
     message: '请求过于频繁，请稍后再试',
@@ -40,6 +47,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 日志中间件
 app.use(logger);
+
+// 响应日志中间件
+app.use(responseLogger);
+app.use(apiStatistics);
 
 // 静态文件服务
 app.use('/uploads', express.static('uploads'));
@@ -81,4 +92,4 @@ app.use('*', (req, res) => {
 // 错误处理中间件（必须放在最后）
 app.use(errorHandler);
 
-module.exports = app;
+module.exports = server;

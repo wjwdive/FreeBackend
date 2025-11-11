@@ -201,7 +201,13 @@ const validateDataConvert = validateBody(require('joi').object({
 }));
 
 module.exports = {
-  toolsController,
+  convertFileFormat: toolsController.convertFileFormat,
+  encryptData: toolsController.encryptData,
+  decryptData: toolsController.decryptData,
+  generateCaptcha: toolsController.generateCaptcha,
+  convertDataFormat: toolsController.convertDataFormat,
+  healthCheck: toolsController.healthCheck,
+  getSupportedFormats: toolsController.getSupportedFormats,
   validateFileUpload,
   validateEncryption,
   validateDataConvert

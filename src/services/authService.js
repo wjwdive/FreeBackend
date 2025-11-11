@@ -38,7 +38,7 @@ class AuthService {
 
       // 生成JWT令牌
       const token = jwtConfig.generateToken({
-        userId: user.id,
+        userId: user.userId,
         username: user.username,
         role: user.role
       });
@@ -93,7 +93,7 @@ class AuthService {
 
       // 生成JWT令牌
       const token = jwtConfig.generateToken({
-        userId: user.id,
+        userId: user.userId,
         username: user.username,
         role: user.role
       });

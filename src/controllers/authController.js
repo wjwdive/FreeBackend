@@ -127,7 +127,7 @@ class AuthController {
       });
     }
 
-    const result = await authService.changePassword(req.user.id, { oldPassword, newPassword });
+    const result = await authService.changePassword(req.user.userId, { oldPassword, newPassword });
     
     res.status(200).json({
       statusCode: 200,
@@ -160,7 +160,12 @@ const validateRegister = validateBody(schemas.register);
 const validateLogin = validateBody(schemas.login);
 
 module.exports = {
-  authController,
+  register: authController.register,
+  login: authController.login,
+  refreshToken: authController.refreshToken,
+  validateToken: authController.validateToken,
+  changePassword: authController.changePassword,
+  getStatistics: authController.getStatistics,
   validateRegister,
   validateLogin
 };
