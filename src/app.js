@@ -54,6 +54,7 @@ app.use(apiStatistics);
 
 // 静态文件服务
 app.use('/uploads', express.static('uploads'));
+app.use('/avatars', express.static('public/avatars'));
 
 // API文档路由
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
