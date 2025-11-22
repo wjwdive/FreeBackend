@@ -27,8 +27,10 @@ public/avatars/
 
 ```
 # 默认头像
-http://localhost:3000/avatars/default/avatar1.jpg
-http://localhost:3000/avatars/default/avatar2.jpg
+http://localhost:3001/avatars/default/avatar1.jpg
+http://localhost:3001/avatars/default/avatar2.jpg
+# 可以从 aratar001.png 取到aratar039.png
+http://localhost:3001/avatars/avatar001.png
 
 # 男性头像
 http://localhost:3000/avatars/male/user1.jpg
