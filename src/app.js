@@ -10,6 +10,7 @@ const config = require('./config');
 const logger = require('./middleware/logger');
 const { responseLogger, apiStatistics } = require('./middleware/responseLogger');
 const errorHandler = require('./middleware/errorHandler');
+const queryOptimizer = require('./middleware/queryOptimizer');
 const routes = require('./routes');
 const { specs, swaggerUi } = require('./config/swagger');
 const socketHandler = require('./socket');
@@ -17,11 +18,18 @@ const socketHandler = require('./socket');
 const app = express();
 const server = createServer(app);
 
-// Socket.IO配置
-const io = new Server(server, config.socket);
+// Socket.IO配置（可选启用）
+const enableSocketIO = process.env.ENABLE_SOCKET_IO !== 'false'; // 默认启用
+let io = null;
 
-// Socket.IO处理器
-socketHandler(io);
+if (enableSocketIO) {
+  io = new Server(server, config.socket);
+  // Socket.IO处理器
+  socketHandler(io);
+  console.log('✅ Socket.IO 服务已启用');
+} else {
+  console.log('⏸️  Socket.IO 服务已禁用');
+}
 
 // 安全中间件
 app.use(helmet());
@@ -51,6 +59,12 @@ app.use(logger);
 // 响应日志中间件
 app.use(responseLogger);
 app.use(apiStatistics);
+
+// 数据库查询优化中间件（生产环境）
+if (process.env.NODE_ENV === 'production') {
+  app.use(queryOptimizer.healthCheck());
+  app.use(queryOptimizer.monitor());
+}
 
 // 静态文件服务
 app.use('/uploads', express.static('uploads'));
