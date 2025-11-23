@@ -2,36 +2,49 @@
 node_modules/
 npm-debug.log*
 
-# 环境变量
+# 环境变量（生产环境单独配置）
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# 日志
-logs/
-*.log
+# 日志文件
+logs/*.log
 
-# 上传文件
-uploads/
+# 上传文件（保留目录结构）
+uploads/*
+!uploads/.gitkeep
 
 # 测试覆盖率
 coverage/
 .nyc_output/
 
-# IDE
+# IDE配置
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# 操作系统
+# 操作系统文件
 .DS_Store
 Thumbs.db
 
-# Docker
-Dockerfile
-.dockerignore
-
 # 临时文件
+.tmp/
+temp/
 *.tmp
 *.temp
+
+# 备份文件
+*.backup
+*.bak
+
+# 证书文件
+*.pem
+*.key
+*.crt
+
+# 数据库文件（如果有本地数据库）
+*.db
+*.sqlite

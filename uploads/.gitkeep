@@ -1,0 +1,2 @@
+# 保留uploads目录结构
+# 这个文件确保Git不会忽略空的uploads目录
