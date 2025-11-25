@@ -74,13 +74,34 @@ class ModelInitializer {
       // 根据环境决定同步策略
       const syncOptions = {
         force: false, // 生产环境永远不要设置为true
-        alter: process.env.NODE_ENV === 'development' // 开发环境允许修改表结构
+        alter: process.env.NODE_ENV === 'development', // 开发环境允许修改表结构
+        logging: process.env.DEBUG_DB_SYNC === 'true' ? console.log : false // 调试模式
       };
+
+      // 检查是否已经存在表结构
+      const tableExists = await this.sequelize.query(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = 'users'",
+        {
+          replacements: [this.sequelize.config.database],
+          type: this.sequelize.QueryTypes.SELECT
+        }
+      );
+
+      if (tableExists.length > 0) {
+        console.log('✅ 数据库表已存在，跳过同步');
+        return;
+      }
 
       await this.sequelize.sync(syncOptions);
       console.log('数据库同步完成');
     } catch (error) {
-      console.error('数据库同步失败:', error);
+      if (error.original && error.original.code === 'ER_TOO_MANY_KEYS') {
+        console.error('❌ 数据库同步失败: 索引数量超过MySQL限制(64个)');
+        console.error('💡 解决方案: 请检查模型定义中的索引数量，或手动清理数据库中的多余索引');
+        console.error('📋 临时解决方案: 设置环境变量 SKIP_DB_SYNC=true 跳过数据库同步');
+      } else {
+        console.error('数据库同步失败:', error);
+      }
       console.log('⚠️  数据库同步失败，应用将以无数据库模式运行');
       // 不抛出错误，让应用继续运行
     }

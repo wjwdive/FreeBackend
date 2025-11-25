@@ -41,9 +41,13 @@ const startServer = async () => {
     console.log('🚀 启动 FreeBackend 服务...');
     console.log(`📝 环境: ${NODE_ENV}`);
     
-    // 初始化数据库模型
+    // 初始化数据库模型（可跳过同步）
     console.log('🔧 初始化数据库模型...');
-    await modelInitializer.init();
+    if (process.env.SKIP_DB_SYNC === 'true') {
+      console.log('⏭️  跳过数据库同步（SKIP_DB_SYNC=true）');
+    } else {
+      await modelInitializer.init();
+    }
     
     // 测试数据库连接
     console.log('🔌 测试数据库连接...');
