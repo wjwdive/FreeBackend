@@ -8,13 +8,27 @@ class DatabaseConfig {
   constructor() {
     this.sequelize = null;
     this.isConnected = false;
-    this.init();
+    this.initializing = false;
+    // 不在构造函数中立即初始化，改为延迟初始化
   }
 
   /**
    * 初始化数据库连接
    */
-  init() {
+  async init() {
+    // 防止重复初始化
+    if (this.initializing) {
+      console.log('⏳ 数据库连接正在初始化中，请等待...');
+      return;
+    }
+    
+    if (this.sequelize) {
+      console.log('✅ 数据库连接已存在，跳过重复初始化');
+      return;
+    }
+    
+    this.initializing = true;
+    
     try {
       // 检查是否配置了数据库连接信息
       const hasDBConfig = process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME;
@@ -22,6 +36,7 @@ class DatabaseConfig {
       if (!hasDBConfig) {
         console.log('⚠️  未配置数据库连接信息，应用将以无数据库模式运行');
         this.isConnected = false;
+        this.initializing = false;
         return;
       }
 
@@ -88,12 +103,14 @@ class DatabaseConfig {
         }
       );
 
-      console.log('数据库配置初始化完成');
+      console.log('✅ 数据库配置初始化完成');
+      this.initializing = false;
     } catch (error) {
-      console.error('数据库配置初始化失败:', error);
+      console.error('❌ 数据库配置初始化失败:', error);
       console.log('⚠️  数据库连接失败，应用将以无数据库模式运行');
       this.isConnected = false;
       this.sequelize = null; // 确保sequelize实例为null
+      this.initializing = false;
     }
   }
 

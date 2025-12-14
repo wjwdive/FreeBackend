@@ -6,8 +6,9 @@
  */
 
 const app = require('./src/app');
-const modelInitializer = require('./src/models');
-const databaseConfig = require('./src/config/database');
+// 导入配置和模型（延迟加载，避免立即初始化）
+let databaseConfig = null;
+let modelInitializer = null;
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -41,6 +42,10 @@ const startServer = async () => {
     console.log('🚀 启动 FreeBackend 服务...');
     console.log(`📝 环境: ${NODE_ENV}`);
     
+    // 延迟加载数据库配置和模型初始化器
+    databaseConfig = require('./src/config/database');
+    modelInitializer = require('./src/models');
+    
     // 初始化数据库模型（可跳过同步）
     console.log('🔧 初始化数据库模型...');
     if (process.env.SKIP_DB_SYNC === 'true') {
@@ -49,14 +54,14 @@ const startServer = async () => {
       await modelInitializer.init();
     }
     
-    // 测试数据库连接
-    console.log('🔌 测试数据库连接...');
+    // 验证数据库连接
+    console.log('🔌 验证数据库连接...');
     const dbConnected = await databaseConfig.testConnection();
     if (!dbConnected) {
       console.log('⚠️  数据库连接失败，应用将以无数据库模式运行');
       console.log('💡 提示：某些需要数据库的功能将不可用');
     } else {
-      console.log('✅ 数据库连接成功');
+      console.log('✅ 数据库连接验证成功');
     }
     
     // 启动HTTP服务器

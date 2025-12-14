@@ -3,7 +3,7 @@
  * 用于快速验证聊天功能是否正常工作
  */
 
-const { runChatTest } = require('./src/utils/chatClient');
+const { runChatTest } = require('../src/utils/chatClient');
 
 console.log('🚀 开始测试聊天功能...\n');
 

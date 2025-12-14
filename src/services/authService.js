@@ -1,6 +1,19 @@
 const jwtConfig = require('../config/jwt');
-const User = require('../models/User');
+const { getUserModel } = require('../models/User');
 const { createError } = require('../middleware/errorHandler');
+
+// 延迟获取User模型
+let User = null;
+
+/**
+ * 获取User模型实例
+ */
+const getUser = () => {
+  if (!User) {
+    User = getUserModel();
+  }
+  return User;
+};
 
 /**
  * 认证服务类
@@ -20,17 +33,17 @@ class AuthService {
       const { username, password, email } = userData;
 
       // 检查用户名是否已存在
-      if (await User.isUsernameExists(username)) {
+      if (await getUser().isUsernameExists(username)) {
         throw createError('用户名已存在', 409, 'ConflictError');
       }
 
       // 检查邮箱是否已存在
-      if (await User.isEmailExists(email)) {
+      if (await getUser().isEmailExists(email)) {
         throw createError('邮箱已存在', 409, 'ConflictError');
       }
 
       // 创建用户
-      const user = await User.create({
+      const user = await getUser().create({
         username,
         password,
         email
@@ -72,7 +85,7 @@ class AuthService {
       const { username, password } = credentials;
 
       // 查找用户
-      const user = await User.findByUsername(username);
+      const user = await getUser().findByUsername(username);
       if (!user) {
         throw createError('用户名或密码错误', 401, 'UnauthorizedError');
       }
@@ -119,7 +132,7 @@ class AuthService {
       const decoded = jwtConfig.verifyToken(token);
       
       // 查找用户
-      const user = await User.findByPk(decoded.userId);
+      const user = await getUser().findByPk(decoded.userId);
       if (!user || user.status !== 'active') {
         throw createError('用户不存在或已被禁用', 401, 'UnauthorizedError');
       }
@@ -146,7 +159,7 @@ class AuthService {
       const decoded = jwtConfig.verifyToken(token);
       
       // 查找用户
-      const user = await User.findByPk(decoded.userId);
+      const user = await getUser().findByPk(decoded.userId);
       if (!user || user.status !== 'active') {
         throw createError('用户不存在或已被禁用', 401, 'UnauthorizedError');
       }
@@ -178,7 +191,7 @@ class AuthService {
       const { oldPassword, newPassword } = passwordData;
 
       // 查找用户
-      const user = await User.findByPk(userId);
+      const user = await getUser().findByPk(userId);
       if (!user) {
         throw createError('用户不存在', 404, 'NotFoundError');
       }

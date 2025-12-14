@@ -1,51 +1,115 @@
+const fs = require('fs');
+const path = require('path');
 const databaseConfig = require('../config/database');
 
 /**
- * 模型初始化类
- * 负责数据库模型的导入、关联和同步
+ * 模型初始化器
+ * 负责自动导入所有模型文件并设置关联关系
  */
 class ModelInitializer {
   constructor() {
     this.models = {};
-    this.initialized = false;
-    this.sequelize = databaseConfig.getSequelize();
+    this.sequelize = null; // 延迟获取sequelize实例
+    this.isInitialized = false;
+    this.initializing = false;
   }
 
   /**
-   * 初始化所有模型
+   * 初始化模型
    */
   async init() {
-    if (this.initialized) {
+    // 防止重复初始化
+    if (this.initializing) {
+      console.log('⏳ 模型正在初始化中，请等待...');
+      return;
+    }
+    
+    if (this.isInitialized) {
+      console.log('✅ 模型已初始化，跳过重复操作');
       return;
     }
 
+    this.initializing = true;
+    
     try {
-      // 导入模型
-      const User = require('./User');
+      console.log('🚀 开始初始化数据库模型...');
       
-      // 注册模型
-      this.models.User = User;
-
-      // 建立模型关联（如果有）
-      this.setupAssociations();
-
-      // 检查数据库是否可用，如果不可用则跳过同步
+      // 1. 初始化数据库连接
       if (!this.sequelize) {
-        console.log('⚠️  无数据库连接，跳过数据库同步');
-        this.initialized = true;
-        return;
+        console.log('⏳ 初始化数据库连接...');
+        await databaseConfig.init();
+        this.sequelize = databaseConfig.getSequelize();
       }
-
-      // 同步数据库
+      
+      // 2. 确保数据库连接已建立
+      if (!databaseConfig.isConnected) {
+        console.log('⏳ 等待数据库连接...');
+        await databaseConfig.testConnection();
+      }
+      
+      // 3. 导入所有模型文件
+      await this.importModels();
+      
+      // 4. 设置模型关联关系
+      await this.setupAssociations();
+      
+      // 5. 同步数据库结构
       await this.syncDatabase();
-
-      this.initialized = true;
-      console.log('数据库模型初始化完成');
+      
+      this.isInitialized = true;
+      this.initializing = false;
+      console.log('✅ 数据库模型初始化完成');
     } catch (error) {
-      console.error('数据库模型初始化失败:', error);
-      console.log('⚠️  数据库模型初始化失败，应用将以无数据库模式运行');
-      this.initialized = true; // 标记为已初始化，但数据库功能不可用
+      console.error('❌ 模型初始化失败:', error);
+      this.initializing = false;
+      throw error;
     }
+  }
+
+  /**
+   * 导入所有模型文件
+   */
+  async importModels() {
+    const modelDir = __dirname;
+    const files = fs.readdirSync(modelDir);
+    
+    for (const file of files) {
+      // 跳过index.js和非.js文件
+      if (file === 'index.js' || !file.endsWith('.js')) {
+        continue;
+      }
+      
+      const filePath = path.join(modelDir, file);
+      const modelName = path.basename(file, '.js');
+      
+      try {
+        console.log(`📦 导入模型: ${modelName}`);
+        
+        // 使用新的延迟模型获取方式
+        const modelModule = require(filePath);
+        
+        // 根据不同的导出方式获取模型
+        let model;
+        if (modelModule.getUserModel) {
+          model = modelModule.getUserModel();
+        } else if (modelModule.getNewsModel) {
+          model = modelModule.getNewsModel();
+        } else if (modelModule.getApiKeyModel) {
+          model = modelModule.getApiKeyModel();
+        } else {
+          // 兼容旧的导出方式
+          model = modelModule;
+        }
+        
+        this.models[modelName] = model;
+        console.log(`✅ 模型 ${modelName} 导入成功`);
+      } catch (error) {
+        console.error(`❌ 导入模型 ${modelName} 失败:`, error.message);
+        throw error;
+      }
+    }
+    
+    console.log(`✅ 所有模型导入完成，共导入 ${Object.keys(this.models).length} 个模型`);
   }
 
   /**
@@ -78,22 +142,50 @@ class ModelInitializer {
         logging: process.env.DEBUG_DB_SYNC === 'true' ? console.log : false // 调试模式
       };
 
-      // 检查是否已经存在表结构
-      const tableExists = await this.sequelize.query(
-        "SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = 'users'",
-        {
-          replacements: [this.sequelize.config.database],
-          type: this.sequelize.QueryTypes.SELECT
+      // 跳过表存在性检查，直接尝试同步
+      console.log('🔄 开始数据库同步...');
+      
+      // 使用更安全的同步方式，避免内部查询错误
+      try {
+        await this.sequelize.sync(syncOptions);
+        console.log('✅ 数据库同步完成');
+      } catch (syncError) {
+        console.error('❌ 数据库同步失败:', syncError.message);
+        
+        // 如果同步失败，尝试逐个模型同步，使用更安全的同步选项
+        console.log('⚠️  整体同步失败，尝试逐个模型同步...');
+        
+        const safeSyncOptions = {
+          force: false,
+          alter: false, // 关闭表结构修改
+          logging: false // 关闭日志输出
+        };
+        
+        for (const modelName in this.models) {
+          try {
+            // 对于User模型，使用更保守的同步策略
+            if (modelName === 'User') {
+              console.log(`🔄 尝试同步模型 ${modelName}（使用保守策略）...`);
+              // 先尝试不创建索引
+              await this.models[modelName].sync({ ...safeSyncOptions, indexes: false });
+            } else {
+              console.log(`🔄 尝试同步模型 ${modelName}...`);
+              await this.models[modelName].sync(safeSyncOptions);
+            }
+            console.log(`✅ 模型 ${modelName} 同步成功`);
+          } catch (modelError) {
+            console.error(`❌ 模型 ${modelName} 同步失败:`, modelError.message);
+            
+            // 对于索引过多的错误，提供具体解决方案
+            if (modelError.message.includes('Too many keys')) {
+              console.error(`💡 解决方案: 请检查 ${modelName} 模型的索引数量，或手动清理数据库中的多余索引`);
+            }
+            // 继续同步其他模型
+          }
         }
-      );
-
-      if (tableExists.length > 0) {
-        console.log('✅ 数据库表已存在，跳过同步');
-        return;
+        
+        console.log('⚠️  数据库同步部分完成，某些表可能未创建');
       }
-
-      await this.sequelize.sync(syncOptions);
-      console.log('数据库同步完成');
     } catch (error) {
       if (error.original && error.original.code === 'ER_TOO_MANY_KEYS') {
         console.error('❌ 数据库同步失败: 索引数量超过MySQL限制(64个)');
@@ -148,14 +240,25 @@ class ModelInitializer {
    */
   async healthCheck() {
     try {
-      await sequelize.authenticate();
+      if (!this.sequelize) {
+        return {
+          status: 'unhealthy',
+          database: {
+            connected: false,
+            error: '数据库连接未初始化'
+          },
+          timestamp: new Date().toISOString()
+        };
+      }
+      
+      await this.sequelize.authenticate();
       
       // 检查表是否存在
-      const tableExists = await sequelize.query(
+      const tableExists = await this.sequelize.query(
         "SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = 'users'",
         {
-          replacements: [sequelize.config.database],
-          type: sequelize.QueryTypes.SELECT
+          replacements: [this.sequelize.config.database],
+          type: this.sequelize.QueryTypes.SELECT
         }
       );
 

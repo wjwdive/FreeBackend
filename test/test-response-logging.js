@@ -1,5 +1,5 @@
 const request = require('supertest');
-const server = require('./src/app');
+const server = require('../src/app');
 
 /**
  * 测试响应日志功能
